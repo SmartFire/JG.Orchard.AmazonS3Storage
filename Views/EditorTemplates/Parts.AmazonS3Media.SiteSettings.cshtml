@@ -1,0 +1,25 @@
+﻿@model JG.Orchard.AmazonS3Storage.Models.JGS3StorageProviderSettingsRecord
+
+<fieldset>
+    <legend>@T("Amazon S3 Storage Provider Settings")</legend>
+    <div>
+        @Html.LabelFor(m => m.AWSAccessKey)
+        @Html.EditorFor(m => m.AWSAccessKey)
+        @Html.ValidationMessageFor(m => m.AWSAccessKey)        
+    </div>
+    <div>
+        @Html.LabelFor(m => m.AWSSecretKey)
+        @Html.EditorFor(m => m.AWSSecretKey)
+        @Html.ValidationMessageFor(m => m.AWSSecretKey)        
+    </div>
+    <div>
+        @Html.LabelFor(m => m.BucketName)
+        @Html.EditorFor(m => m.BucketName)
+        @Html.ValidationMessageFor(m => m.BucketName)        
+    </div>
+    <div>
+        @Html.LabelFor(m => m.RegionEndpoint)
+        @Html.EditorFor(m => m.RegionEndpoint)
+        @Html.ValidationMessageFor(m => m.RegionEndpoint)
+    </div>
+</fieldset>

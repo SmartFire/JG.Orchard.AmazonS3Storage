@@ -1,0 +1,6 @@
+﻿<Placement>
+    <!-- available display shapes -->
+    <!-- widget and edit shapes just get default placement -->
+    <!-- edit "shapes" -->
+    <Place Parts_AmazonS3Media_SiteSettings="Content:10"/>
+</Placement>

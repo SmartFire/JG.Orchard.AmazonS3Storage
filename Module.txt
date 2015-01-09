@@ -1,0 +1,14 @@
+﻿Name: Amazon S3 Storage
+AntiForgery: enabled
+Author: JustGiving
+Website: http://orchardproject.net
+Version: 1.0.0
+OrchardVersion: 1.8
+Description: Provides a set of Orchard service implementations targeting Amazon S3 services.
+Category: Hosting
+Features:
+	AmazonS3Media.Storage:
+		Name: Amazon S3 Media Storage
+		Description: Activates an Orchard media storage provider that targets Amazon S3 Blob Storage.
+		Dependencies: 
+		Category: Hosting
