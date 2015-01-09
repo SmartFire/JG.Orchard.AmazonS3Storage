@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using Amazon;
 using Orchard.ContentManagement.Records;
 
 namespace JG.Orchard.AmazonS3Storage.Models
@@ -12,6 +13,8 @@ namespace JG.Orchard.AmazonS3Storage.Models
 
         [Required]
         [DisplayName("AWS Secret Key")]
+        [PasswordPropertyText]
+        [System.ComponentModel.DataAnnotations.DataType(DataType.Password)]
         public virtual string AWSSecretKey { get; set; }
 
         [Required]
