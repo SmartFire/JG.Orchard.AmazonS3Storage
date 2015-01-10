@@ -20,8 +20,8 @@
     <div>
         @Html.LabelFor(m => m.RegionEndpoint)
         @Html.DropDownListFor(m => m.RegionEndpoint,
-                 Amazon.RegionEndpoint.EnumerableAllRegions.Select(ep=>new SelectListItem(){Text=ep.DisplayName, Value=ep.SystemName, Selected=Model.RegionEndpoint==ep.SystemName}),
-        "S3 Region Endpoint")
+            Model.GetEndpoints().Select(ep=>new SelectListItem(){Text=ep.DisplayName, Value=ep.SystemName, Selected=Model.RegionEndpoint==ep.SystemName}),
+            "S3 Region Endpoint")
         @Html.ValidationMessageFor(m => m.RegionEndpoint)
     </div>
 </fieldset>

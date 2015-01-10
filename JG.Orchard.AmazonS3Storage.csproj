@@ -30,8 +30,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="AWSSDK">
-      <HintPath>..\..\..\packages\AWSSDK.2.3.14.0\lib\net45\AWSSDK.dll</HintPath>
+    <Reference Include="AWSSDK, Version=2.3.14.0, Culture=neutral, PublicKeyToken=9f476d3089b52be3, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>lib\AWSSDK.dll</HintPath>
     </Reference>
     <Reference Include="Orchard.Core">
       <HintPath>..\Orchard.Web\bin\Orchard.Core.dll</HintPath>
@@ -83,9 +84,7 @@
     <Content Include="Module.txt" />
     <Content Include="Web.config" />
   </ItemGroup>
-  <ItemGroup>
-    <Folder Include="lib\" />
-  </ItemGroup>
+  <ItemGroup />
   <ItemGroup>
     <None Include="packages.config" />
     <Content Include="Views\EditorTemplates\Parts.AmazonS3Media.SiteSettings.cshtml" />

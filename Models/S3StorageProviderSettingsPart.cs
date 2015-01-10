@@ -1,5 +1,7 @@
-﻿using System.ComponentModel;
+﻿using System.Collections.Generic;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using Orchard.ContentManagement;
 
 namespace JG.Orchard.AmazonS3Storage.Models
@@ -37,5 +39,15 @@ namespace JG.Orchard.AmazonS3Storage.Models
             get { return Record.RegionEndpoint; }
             set { Record.RegionEndpoint = value; }
         }
+
+        public virtual IEnumerable<S3RegionEndpoint> AvailableEndpoints {
+            get { return Amazon.RegionEndpoint.EnumerableAllRegions
+                .Select(ep=>new S3RegionEndpoint(){DisplayName=ep.DisplayName, SystemName = ep.SystemName}); }
+        }
+    }
+
+    public class S3RegionEndpoint {
+        public string SystemName { get; set; }
+        public string DisplayName { get; set; }
     }
 }

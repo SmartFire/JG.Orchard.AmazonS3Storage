@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Web.Mvc;
 using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
@@ -11,7 +12,9 @@ using Orchard.Localization;
 
 namespace JG.Orchard.AmazonS3Storage.Drivers
 {
-    public class S3StorageProviderSettingsPartDriver : ContentPartDriver<S3StorageProviderSettingsPart> {
+    public class S3StorageProviderSettingsPartDriver : ContentPartDriver<S3StorageProviderSettingsPart>
+    {
+
         public S3StorageProviderSettingsPartDriver()
         {
             T = NullLocalizer.Instance;
@@ -28,13 +31,15 @@ namespace JG.Orchard.AmazonS3Storage.Drivers
 
         protected override DriverResult Editor(S3StorageProviderSettingsPart part, IUpdateModel updater, dynamic shapeHelper)
         {
-
+            
             return ContentShape("Parts_AmazonS3Media_SiteSettings", () =>
             {
                     if (updater != null && updater.TryUpdateModel(part, Prefix, null, null)) {
                         ValidateS3Connection(part, updater);
                     }
-                    return shapeHelper.EditorTemplate(TemplateName: "Parts.AmazonS3Media.SiteSettings", Model: part.Record, Prefix: Prefix); 
+                    return shapeHelper.EditorTemplate(TemplateName: "Parts.AmazonS3Media.SiteSettings",
+                        Model: part.Record, 
+                        Prefix: Prefix); 
                 })
                 .OnGroup("Amazon S3");
         }
