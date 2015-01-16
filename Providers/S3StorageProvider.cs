@@ -16,7 +16,7 @@ using Orchard.Logging;
 
 namespace JG.Orchard.AmazonS3Storage.Providers
 {
-    [OrchardFeature("AmazonS3Media.Storage")]
+    //[OrchardFeature("AmazonS3Media.Storage")]
     [OrchardSuppressDependency("Orchard.FileSystems.Media.FileSystemStorageProvider")]
     public class S3StorageProvider : IStorageProvider, IDisposable
     {
@@ -38,6 +38,9 @@ namespace JG.Orchard.AmazonS3Storage.Providers
 
         public void EnsureInitialized() {
             if (_s3Config == null) {
+                var regionEndpoint=this.RegionEndpoint;
+                if (regionEndpoint==null)
+                    return;
                 try {
                     _s3Config = new AmazonS3Config() {
                         RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(RegionEndpoint),
@@ -83,7 +86,9 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         {
             get {
                 var settings = _services.WorkContext.CurrentSite.As<S3StorageProviderSettingsPart>();
-                return settings.AWSAccessKey;
+                if (settings != null)
+                    return settings.AWSAccessKey;
+                return null;
             }
         }
         public string AWSSecretKey
@@ -91,7 +96,9 @@ namespace JG.Orchard.AmazonS3Storage.Providers
             get
             {
                 var settings = _services.WorkContext.CurrentSite.As<S3StorageProviderSettingsPart>();
-                return settings.AWSSecretKey;
+                if (settings != null)
+                    return settings.AWSSecretKey;
+                return null;
             }
         }
         public string BucketName
@@ -99,15 +106,18 @@ namespace JG.Orchard.AmazonS3Storage.Providers
             get
             {
                 var settings = _services.WorkContext.CurrentSite.As<S3StorageProviderSettingsPart>();
-                return settings.BucketName;
-
+                if (settings != null)
+                    return settings.BucketName;
+                return null;
             }
         }
         public string RegionEndpoint
         {
             get {
                 var settings = _services.WorkContext.CurrentSite.As<S3StorageProviderSettingsPart>();
-                return settings.RegionEndpoint;
+                if (settings != null)
+                    return settings.RegionEndpoint;
+                return null;
             }
         }
 
@@ -127,6 +137,8 @@ namespace JG.Orchard.AmazonS3Storage.Providers
 
         public bool FileExists(string path) {
             EnsureInitialized();
+            if (_s3Config == null) return false;
+
             var files = new List<S3StorageFile>();
                 var request = new ListObjectsRequest();
                 request.BucketName = BucketName;
@@ -164,6 +176,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         /// <exception cref="ArgumentException">If the file is not found.</exception>
         public IStorageFile GetFile(string path) {
             EnsureInitialized();
+            if (_s3Config==null) return null;
             // seperate folder form file
                 var request = new GetObjectRequest();
                 request.BucketName = BucketName;
@@ -198,6 +211,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         public IEnumerable<IStorageFile> ListFiles(string path)
         {
             EnsureInitialized();
+            if (_s3Config==null) return null;
             var files = new List<S3StorageFile>();
                 var request = new ListObjectsRequest();
                 request.BucketName = BucketName;
@@ -250,17 +264,20 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         public IEnumerable<IStorageFolder> ListFolders(string path)
         {
             EnsureInitialized();
+            if (_s3Config==null) return null;
             var folders = new List<S3StorageFolder>();
 
                 path = path ?? "";
                 ListObjectsRequest request = new ListObjectsRequest();
                 request.BucketName = BucketName;
 
+                var depth = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries).Length;
                 ListObjectsResponse response = _client.ListObjects(request);
-                // get the objects at the TOP LEVEL, i.e. not inside any folders
-                var folderObjects = response.S3Objects.Where(o => o.Key.EndsWith("/")
-                                        && o.Key.Length >= path.Length
-                                        && o.Key.LastIndexOf('/') == o.Key.IndexOf('/', path.Length));
+                var folderObjects = response.S3Objects
+                                    .Where(o => o.Key.EndsWith("/")
+                                        && o.Key.StartsWith(path)
+                                        && o.Key.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries).Length == depth + 1)
+                                        .ToList();
 
                 foreach (var fo in folderObjects)
                 {
@@ -279,6 +296,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         public bool TryCreateFolder(string path)
         {
             EnsureInitialized();
+            if (_s3Config==null) return false;
             try
             {
                     var key = string.Format(@"{0}/", path);
@@ -304,6 +322,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         public void CreateFolder(string path)
         {
             EnsureInitialized();
+            if (_s3Config==null) return;
             try
             {
                     var key = string.Format(@"{0}/", path);
@@ -331,6 +350,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         private void DeleteFolder(string path, IAmazonS3 client)
         {
             EnsureInitialized();
+            if (_s3Config==null) return;
             //TODO: Refractor to use async deletion?
             foreach (var folder in ListFolders(path))
             {
@@ -360,6 +380,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         public void DeleteFile(string path)
         {
             EnsureInitialized();
+            if (_s3Config==null) return;
             DeleteFile(path, _client);
         }
 
