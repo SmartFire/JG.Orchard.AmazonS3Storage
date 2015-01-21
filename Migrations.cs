@@ -17,5 +17,11 @@ namespace JG.Orchard.AmazonS3Storage
 
             return 1;
         }
+
+        public int UpdateFrom1() {
+            SchemaBuilder.AlterTable("JGS3StorageProviderSettingsRecord", table => table
+                .AddColumn<bool>("UseCustomCredentials"));
+            return 2;
+        }
     }
 }

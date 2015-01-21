@@ -1,7 +1,28 @@
 ﻿@model JG.Orchard.AmazonS3Storage.Models.JGS3StorageProviderSettingsRecord
 
+@{
+    Script.Require("jQuery").AtHead();
+    var iamRole = Model.GetIAMRole();
+    
+    string iamRoleOptionLabel = "Use credentials associated with IAM Role (No IAM Role detected! Is this an EC2 instance?)";
+    bool disableCustomOption = true;
+    if (!string.IsNullOrWhiteSpace(iamRole)) {
+        iamRoleOptionLabel = string.Format("Use credentials associated with IAM Role '{0}'", iamRole);
+        disableCustomOption = false;
+    }
+}
+
 <fieldset>
     <legend>@T("Amazon S3 Storage Provider Settings")</legend>
+    <div>
+        @Html.CheckBoxFor(m => m.UseCustomCredentials) @Html.LabelFor(m => m.UseCustomCredentials, "Use custom credentials",
+        disableCustomOption ? new { Disabled="disabled", Checked="checked"} : null)
+    </div>
+    @if (!string.IsNullOrWhiteSpace(iamRole)) {
+        <div>
+            IAM Role: @iamRole
+        </div>
+    }
     <div>
         @Html.LabelFor(m => m.AWSAccessKey)
         @Html.EditorFor(m => m.AWSAccessKey)

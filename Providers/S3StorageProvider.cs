@@ -2,6 +2,10 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
+using Amazon;
+using Amazon.CloudSearchDomain.Model;
+using Amazon.EC2.Util;
 using Amazon.S3;
 using Amazon.S3.IO;
 using Amazon.S3.Model;
@@ -20,8 +24,8 @@ namespace JG.Orchard.AmazonS3Storage.Providers
     [OrchardSuppressDependency("Orchard.FileSystems.Media.FileSystemStorageProvider")]
     public class S3StorageProvider : IStorageProvider, IDisposable
     {
+        public static bool UseIamRoleMetadata { get { return true; } }
 
-        private AmazonS3Config _s3Config;
         private readonly IOrchardServices _services;
         private IAmazonS3 _client = null;
         public ILogger Logger { get; set; }
@@ -36,26 +40,93 @@ namespace JG.Orchard.AmazonS3Storage.Providers
 
         }
 
-        public void EnsureInitialized() {
-            if (_s3Config == null) {
-                var regionEndpoint=this.RegionEndpoint;
-                if (regionEndpoint==null)
-                    return;
-                try {
-                    _s3Config = new AmazonS3Config() {
-                        RegionEndpoint = Amazon.RegionEndpoint.GetBySystemName(RegionEndpoint),
-                    };
+        public IAMSecurityCredential GetIAMCredentials()
+        {
+            if (IsAmazonEC2Instance())
+            {
+                try
+                {
+                    if (EC2Metadata.IAMSecurityCredentials.Count == 1)
+                    {
+                        var iamRole = EC2Metadata.IAMSecurityCredentials.Keys.First();
+                        var credential = EC2Metadata.IAMSecurityCredentials[iamRole];
+                        if (credential.Code == "Success")
+                            return credential;
+                    }
                 }
-                catch (Exception ex) {
-                    Logger.Error(ex, "Failed to create S3Config");
-                    return;
+                catch
+                {
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        private bool IsAmazonEC2Instance()
+        {
+            string URI = "http://169.254.169.254/latest/meta-data/";
+            HttpWebRequest req = (HttpWebRequest)WebRequest.Create(URI);
+            req.Method = WebRequestMethods.Http.Head;
+            req.Timeout = 500;
+            try
+            {
+                using (var response = req.GetResponse())
+                {
+                    int TotalSize = Int32.Parse(response.Headers["Content-Length"]);
+                    return TotalSize != 0;
+                }
+            }
+            catch (WebException exception)
+            {
+                return false;
+            }
+        }
+
+        public IAmazonS3 CreateClient() {
+
+            if (!UseCustomCredentials) {
+                var iamCredentials = GetIAMCredentials();
+                if (iamCredentials != null) {
+                    return CreateClientFromIAMCredentials(iamCredentials);
+                }
+            }
+            else {
+                if (!string.IsNullOrWhiteSpace(AWSAccessKey)
+                    && !string.IsNullOrWhiteSpace(AWSSecretKey)
+                    && RegionEndpoint != null) {
+                    return CreateClientFromCustomCredentials(AWSAccessKey, AWSSecretKey, Amazon.RegionEndpoint.GetBySystemName(RegionEndpoint));
                 }
             }
 
+            throw new Exception("This is not an EC2 instance and AWS credentials have not been set");
+        }
+
+        public IAmazonS3 CreateClientFromCustomCredentials(string awsAccessKey, string awsSecretKey, RegionEndpoint regionEndpoint) {
+            return Amazon.AWSClientFactory.CreateAmazonS3Client(awsAccessKey, awsSecretKey, regionEndpoint);
+        }
+
+        public IAmazonS3 CreateClientFromIAMCredentials(IAMSecurityCredential iamCredentials) {
+            Logger.Information("Creating an s3 client using IAM credentials");
+            Logger.Information("AccessKeyId:{0}", iamCredentials.AccessKeyId);
+            Logger.Information("SecretAccessKey:{0}", iamCredentials.SecretAccessKey);
+            Logger.Information("Token:{0}", iamCredentials.Token);
+            var client = new AmazonS3Client(iamCredentials.AccessKeyId, iamCredentials.SecretAccessKey, iamCredentials.Token, Amazon.RegionEndpoint.EUWest1);
+
+            ListBucketsRequest request=new ListBucketsRequest();
+            var buckets = client.ListBuckets(request);
+
+            Logger.Information("List buckets:");
+            foreach (var bucket in buckets.Buckets) {
+                Logger.Information("{0}", bucket.BucketName);
+            }
+            return client;
+        }
+
+        public void EnsureInitialized() {
             if (_client == null) {
                 try {
-                    _client = Amazon.AWSClientFactory.CreateAmazonS3Client(AWSAccessKey, AWSSecretKey, _s3Config);
-                    Logger.Debug("Initialized a new AmazonS3Client");
+                    _client = CreateClient();
+                    Logger.Information("Created an S3 client");
                 }
                 catch (Exception ex) {
                     Logger.Error(ex, "failed to create S3Client");
@@ -68,11 +139,15 @@ namespace JG.Orchard.AmazonS3Storage.Providers
             get
             {
                 EnsureInitialized();
-                if (_s3Config == null)
+                if (_client == null)
                     return "";
 
-                if (_s3Config.RegionEndpoint != null) {
-                    var endpoint = _s3Config.RegionEndpoint.GetEndpointForService("s3");
+                var bucket = _client.GetBucketLocation(BucketName);
+                Logger.Information("Bucket {0} location = {1}", BucketName, bucket.Location.Value);
+                var regionEndpoint = Amazon.RegionEndpoint.GetBySystemName(bucket.Location.Value);
+                if (regionEndpoint != null)
+                {
+                    var endpoint = regionEndpoint.GetEndpointForService("s3");
                     return string.Format("{0}{1}/{2}", 
                         endpoint.HTTPS ? "https://" : "http://",
                         endpoint.Hostname, 
@@ -82,6 +157,16 @@ namespace JG.Orchard.AmazonS3Storage.Providers
                 return "http://s3.amazonaws.com/" + "/" + BucketName;
             }
         }
+
+        public bool UseCustomCredentials {
+            get {
+                var settings = _services.WorkContext.CurrentSite.As<S3StorageProviderSettingsPart>();
+                if (settings != null)
+                    return settings.UseCustomCredentials;
+                return false;
+            }
+        }
+
         public string AWSAccessKey
         {
             get {
@@ -137,7 +222,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
 
         public bool FileExists(string path) {
             EnsureInitialized();
-            if (_s3Config == null) return false;
+            if (_client == null) return false;
 
             var files = new List<S3StorageFile>();
                 var request = new ListObjectsRequest();
@@ -176,7 +261,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         /// <exception cref="ArgumentException">If the file is not found.</exception>
         public IStorageFile GetFile(string path) {
             EnsureInitialized();
-            if (_s3Config==null) return null;
+            if (_client == null) return null;
             // seperate folder form file
                 var request = new GetObjectRequest();
                 request.BucketName = BucketName;
@@ -211,7 +296,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         public IEnumerable<IStorageFile> ListFiles(string path)
         {
             EnsureInitialized();
-            if (_s3Config==null) return null;
+            if (_client == null) return null;
             var files = new List<S3StorageFile>();
                 var request = new ListObjectsRequest();
                 request.BucketName = BucketName;
@@ -264,7 +349,10 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         public IEnumerable<IStorageFolder> ListFolders(string path)
         {
             EnsureInitialized();
-            if (_s3Config==null) return null;
+            if (_client == null) {
+                Logger.Warning("");
+                return null;
+            }
             var folders = new List<S3StorageFolder>();
 
                 path = path ?? "";
@@ -296,7 +384,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         public bool TryCreateFolder(string path)
         {
             EnsureInitialized();
-            if (_s3Config==null) return false;
+            if (_client == null) return false;
             try
             {
                     var key = string.Format(@"{0}/", path);
@@ -322,7 +410,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         public void CreateFolder(string path)
         {
             EnsureInitialized();
-            if (_s3Config==null) return;
+            if (_client == null) return;
             try
             {
                     var key = string.Format(@"{0}/", path);
@@ -341,7 +429,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
 
         public void DeleteFolder(string path)
         {
-            using (var client = Amazon.AWSClientFactory.CreateAmazonS3Client(AWSAccessKey, AWSSecretKey, _s3Config))
+            using (var client = CreateClient())
             {
                 DeleteFolder(path, client);
             }
@@ -350,7 +438,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         private void DeleteFolder(string path, IAmazonS3 client)
         {
             EnsureInitialized();
-            if (_s3Config==null) return;
+            if (_client == null) return;
             //TODO: Refractor to use async deletion?
             foreach (var folder in ListFolders(path))
             {
@@ -380,7 +468,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
         public void DeleteFile(string path)
         {
             EnsureInitialized();
-            if (_s3Config==null) return;
+            if (_client == null) return;
             DeleteFile(path, _client);
         }
 
@@ -397,7 +485,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
 
         public void RenameFile(string oldPath, string newPath)
         {
-            using (var client = Amazon.AWSClientFactory.CreateAmazonS3Client(AWSAccessKey, AWSSecretKey, _s3Config))
+            using (var client = CreateClient())
             {
                 RenameObject(oldPath, newPath, client);
 
