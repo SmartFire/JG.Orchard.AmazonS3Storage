@@ -301,6 +301,7 @@ namespace JG.Orchard.AmazonS3Storage.Providers
                 var request = new ListObjectsRequest();
                 request.BucketName = BucketName;
                 request.Prefix = path;
+                request.MaxKeys = 5000;
 
                 var response = _client.ListObjects(request);
                 foreach (var entry in response.S3Objects.Where(e => e.Key.Last() != '/'))
@@ -358,6 +359,8 @@ namespace JG.Orchard.AmazonS3Storage.Providers
                 path = path ?? "";
                 ListObjectsRequest request = new ListObjectsRequest();
                 request.BucketName = BucketName;
+                request.Prefix = path;
+            request.MaxKeys = 5000;
 
                 var depth = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries).Length;
                 ListObjectsResponse response = _client.ListObjects(request);
