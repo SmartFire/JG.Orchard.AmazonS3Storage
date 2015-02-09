@@ -298,13 +298,22 @@ namespace JG.Orchard.AmazonS3Storage.Providers
             EnsureInitialized();
             if (_client == null) return null;
             var files = new List<S3StorageFile>();
+            var objects = new List<S3Object>();
+
                 var request = new ListObjectsRequest();
                 request.BucketName = BucketName;
                 request.Prefix = path;
                 request.MaxKeys = 5000;
 
                 var response = _client.ListObjects(request);
-                foreach (var entry in response.S3Objects.Where(e => e.Key.Last() != '/'))
+            objects.AddRange(response.S3Objects);
+            while (response.IsTruncated) {
+                request.Marker = response.NextMarker;
+                response = _client.ListObjects(request);
+                objects.AddRange(response.S3Objects);
+            }
+
+            foreach (var entry in objects.Where(e => e.Key.Last() != '/'))
                 {
                     var mimeType = AmazonS3Util.MimeTypeFromExtension(entry.Key.Substring(entry.Key.LastIndexOf(".", System.StringComparison.Ordinal)));
                     files.Add(new S3StorageFile(new S3FileInfo(_client, BucketName, entry.Key), this));
@@ -355,16 +364,25 @@ namespace JG.Orchard.AmazonS3Storage.Providers
                 return null;
             }
             var folders = new List<S3StorageFolder>();
-
+            List<S3Object> s3Objects=new List<S3Object>();
                 path = path ?? "";
                 ListObjectsRequest request = new ListObjectsRequest();
                 request.BucketName = BucketName;
                 request.Prefix = path;
-            request.MaxKeys = 5000;
+                request.MaxKeys = 5000;
 
                 var depth = path.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries).Length;
                 ListObjectsResponse response = _client.ListObjects(request);
-                var folderObjects = response.S3Objects
+                s3Objects.AddRange(response.S3Objects);
+                while (response.IsTruncated)
+                {
+                    request.Marker = response.NextMarker;
+                    response = _client.ListObjects(request);
+                    s3Objects.AddRange(response.S3Objects);
+                }
+
+
+                var folderObjects = s3Objects
                                     .Where(o => o.Key.EndsWith("/")
                                         && o.Key.StartsWith(path)
                                         && o.Key.Split(new[] { '/' }, StringSplitOptions.RemoveEmptyEntries).Length == depth + 1)
